@@ -29,15 +29,20 @@ class SearchFile():
 				  		filename = file_info.filename,
 						created_at = file_info.created_at,
 						has_password = has_password)
+	
+	def password_is_valid(self, stored_password: str | None) -> bool:
+		has_password = stored_password != None
+		if has_password:
+			return verify_password(self.password, stored_password)
+		return True
 		
 	def get_file_from_storage(self):
 		file_info = self.search_in_db()
-		has_password = file_info.password != None
-		password_is_correct = verify_password(self.password, file_info.password)
-		if has_password and not password_is_correct:
+		if not self.password_is_valid(file_info.password):
 			raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Wrong password") 
 		file_stream = FileStorage().download(file_info.file_path)
 		response = StreamingResponse(file_stream, media_type="application/octet-stream")
 		response.headers["Content-Disposition"] = f"attachment; filename={file_info.filename}"
+		response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
 		return response
 	
