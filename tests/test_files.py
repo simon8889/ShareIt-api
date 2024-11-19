@@ -1,86 +1,123 @@
-import pytest
-from fastapi import status, UploadFile
+from fastapi import status
 from fastapi.testclient import TestClient
 from app.main import app
 from app.utils.supported_files import MAX_FILE_SIZE
-from unittest.mock import patch
 from io import BytesIO
-import tempfile
+import os
+import pytest
 
 client = TestClient(app)
 
 @pytest.fixture
-def mock_save_file():
-	with patch("app.services.SaveFile") as MockSaveFile:
-		mock_instance = MockSaveFile.return_value
-		mock_instance.save.return_value = "test_file_id"
-		yield mock_instance
-		
-def test_upload_file_success_2(mock_save_file):
-	with tempfile.TemporaryFile(delete=True) as temp_file:
-		# Write some data to the file
-		temp_file.write(b'This is some temporary data.')
-		
-		# Move to the beginning of the file to read the data
-		temp_file.seek(0)
-		data = temp_file.read()
+def set_up_file_with_invalid_size():
+	file_path = "test.txt"
+	with open(file_path, "wb+") as f:
+		f.write(b"holii" * MAX_FILE_SIZE)
+	yield file_path
+	os.remove(file_path)
 
-	# Realiza la solicitud de prueba
-	response = client.post(
-		"/v1/files/upload",
-		files={"file": ("test.txt", tempfile, "text/plain")},  # Agrega el tipo de contenido
-		params={"password": "test_password"}  # Si tu endpoint necesita la contraseña
+@pytest.fixture
+def set_up_valid_file():
+	file_path = "test.txt"
+	with open(file_path, "wb+") as f:
+		f.write(b"holii")
+	yield file_path
+	os.remove(file_path)
+
+def delete_file(file_id):
+	delete_response = client.delete(
+		"/v1/files/delete",
+		params={"file_id": file_id}
 	)
+	return delete_response.status_code, delete_response.json()
 
-	# Verifica la respuesta
+def test_delete_file(set_up_valid_file):
+	with open(set_up_valid_file, "rb+") as test_file:
+		response = client.post(
+			"/v1/files/upload",
+			files={"file": ("test.txt", test_file, "text/plain")},
+			json={"password": "1234"} 
+		)
 	assert response.status_code == status.HTTP_200_OK
-	assert "File" in response.json()
-	assert response.json()["File"] == "test_file_id" 
+	response_body = response.json()
+	file_id = response_body["File"]
+	delete_status, delete_response = delete_file(file_id)
+	assert delete_status == status.HTTP_200_OK
+	assert delete_response["message"] == "file deleted"
 
-
-
-def test_upload_file_success(mock_save_file):
-	test_file = BytesIO(b"test content")
-	test_file.name = "test_file.txt"
-
-	# Realiza la solicitud de prueba
-	response = client.post(
-		"/v1/files/upload",
-		files={"file": (test_file.name, test_file, "text/plain")},  # Agrega el tipo de contenido
-		params={"password": "test_password"}  # Si tu endpoint necesita la contraseña
-	)
-
-	# Verifica la respuesta
+def test_file_not_exists():
+	exists_response = client.get(
+			"/v1/files/exists",
+			params={"file_id": "file_not_exists"}
+		)	
+	assert exists_response.status_code == status.HTTP_200_OK
+	assert exists_response.json()["exists"] == False
+ 
+def test_file_exists(set_up_valid_file):
+	with open(set_up_valid_file, "rb+") as test_file:
+			response = client.post(
+				"/v1/files/upload",
+				files={"file": ("test.txt", test_file, "text/plain")},
+				json={"password": "1234"} 
+			)
 	assert response.status_code == status.HTTP_200_OK
-	assert "File" in response.json()
-	assert response.json()["File"] == "test_file_id" 
-
-
-def test_upload_file_size_invalid(mock_save_file):
-	test_file = BytesIO(b"test content" * (MAX_FILE_SIZE))
+	response_body = response.json()
+	file_id = response_body["File"]
+	exists_response = client.get(
+		"/v1/files/exists",
+		params={"file_id": file_id}
+	)	
+	assert exists_response.status_code == status.HTTP_200_OK
+	assert exists_response.json()["exists"] == True
+	delete_file(file_id)
 	
-	response = client.post(
-		"/v1/files/upload",
-		files={"file": ("test.txt", test_file, "text/plain")},
-		data={"password": "1234"}
-	)
-	
+def test_upload_file_size_invalid(set_up_file_with_invalid_size):
+	with open(set_up_file_with_invalid_size, "rb") as test_file:
+		response = client.post(
+			"/v1/files/upload",
+			files={"file": ("test.txt", test_file, "text/plain")},
+			json={"password": "1234"} 
+		)
 	assert response.status_code == status.HTTP_400_BAD_REQUEST
 	assert "File not allowed" in response.json()["detail"]
-	mock_save_file.save.assert_not_called()
 
-def test_upload_file_no_password(mock_save_file):
-	test_file = BytesIO(b"test content")
-	
-	response = client.post(
-		"/v1/files/upload",
-		files={"file": ("test.txt", test_file, "text/plain")}
-	)
-	
+def test_file_upload(set_up_valid_file):
+	with open(set_up_valid_file, "rb+") as test_file:
+		response = client.post(
+			"/v1/files/upload",
+			files={"file": ("test.txt", test_file, "text/plain")},
+			json={"password": "1234"} 
+		)
 	assert response.status_code == status.HTTP_200_OK
-	mock_save_file.save.assert_called_once()
+	response_body = response.json()
+	file_id = response_body["File"]
+	file_info_request = client.get(
+		"/v1/files/info",
+		params={"file_id": file_id}
+	)
+	file_info = file_info_request.json()
+	assert response_body["File"] == file_info["file_id"]
+	delete_file(file_info["file_id"])
 
-def test_upload_file_extension_invalid(mock_save_file):
+def test_upload_file_no_password(set_up_valid_file):
+	with open(set_up_valid_file, "rb") as test_file:
+		response = client.post(
+			"/v1/files/upload",
+			files={"file": ("test.txt", test_file, "text/plain")}
+		)
+	assert response.status_code == status.HTTP_200_OK
+	response_body = response.json()
+	file_id = response_body["File"]
+	file_info_request = client.get(
+		"/v1/files/info",
+		params={"file_id": file_id}
+	)
+	file_info = file_info_request.json()
+	assert response_body["File"] == file_info["file_id"]
+	delete_file(file_info["file_id"])
+	
+
+def test_upload_file_extension_invalid():
 	test_file = BytesIO(b"test content")
 	
 	response = client.post(
@@ -90,4 +127,3 @@ def test_upload_file_extension_invalid(mock_save_file):
 	
 	assert response.status_code == status.HTTP_400_BAD_REQUEST
 	assert "File not allowed" in response.json()["detail"]
-	mock_save_file.save.assert_not_called()

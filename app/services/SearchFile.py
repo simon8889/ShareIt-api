@@ -1,18 +1,18 @@
 from fastapi import HTTPException, status
 from fastapi.responses import StreamingResponse
-from sqlmodel import Session, select
+from sqlmodel import Session, select, delete
 
 from app.schemas.FileToSearch import FileToSearch
 from app.schemas.FileInfo import FileInfo
 from app.services.FileStorage import FileStorage
 from app.models.SavedFileModel import SavedFileModel
 
-from ..utils.hash_password import hash_password, verify_password
+from ..utils.hash_password import verify_password
 
 class SearchFile():
 	def __init__(self, file_to_search: FileToSearch, db: Session):
-		self.file_id  = file_to_search.file_id
-		self.password  = file_to_search.password
+		self.file_id = file_to_search.file_id
+		self.password = file_to_search.password
 		self.db = db 
 	
 	def search_in_db(self) -> SavedFileModel:
@@ -21,6 +21,11 @@ class SearchFile():
 		if not result:
 			raise HTTPException(status_code = status.HTTP_404_NOT_FOUND, detail="File not found")
 		return result
+	
+	def file_exists(self) -> bool:
+		query = select(SavedFileModel).where(SavedFileModel.file_id == self.file_id)
+		result = self.db.exec(query).first()
+		return True if result else False
 	
 	def get_file_info(self) -> FileInfo:
 		file_info = self.search_in_db()
@@ -45,4 +50,9 @@ class SearchFile():
 		response.headers["Content-Disposition"] = f"attachment; filename={file_info.filename}"
 		response.headers["Access-Control-Expose-Headers"] = "Content-Disposition"
 		return response
-	
+
+	def delete_file(self):
+		file_info = self.search_in_db()
+		FileStorage().delete(file_info.file_path)
+		delete(SavedFileModel).where(SavedFileModel.file_id == self.file_id)
+		return {"message": "file deleted"}
