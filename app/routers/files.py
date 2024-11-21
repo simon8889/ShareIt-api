@@ -1,15 +1,12 @@
-from fastapi import APIRouter, HTTPException, status, Depends, UploadFile
+from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 
 from app.services.SaveFile import SaveFile
 from app.services.SearchFile import SearchFile
 from app.schemas.FileToSave import FileToSave
 from app.schemas.FileToSearch import FileToSearch
-from app.schemas.Password import Password
 from app.schemas.FileInfo import FileInfo
 from app.config.database import get_session
-
-from typing import Optional
 
 files_router = APIRouter()
 
@@ -38,10 +35,8 @@ def download_file(file_to_search: FileToSearch, session = Depends(get_session)):
 		raise e
 
 @files_router.post("/upload", tags=["files"])
-async def upload_file(file: UploadFile, password: Optional[Password] = None, session = Depends(get_session)):
+async def upload_file(file: UploadFile = File(...), password: str = Form(None), session = Depends(get_session)):
 	file_to_save = FileToSave(file = file, password = password)
-	if password:
-		file_to_save = FileToSave(file = file, password = password.password)
 	save_file = SaveFile(file_to_save, session)
 	try:
 		file_id = await save_file.save()

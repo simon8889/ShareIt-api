@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from .config.database import init_db
 from .routers.files import files_router
+from .routers.qr_generator import qr_generator_router
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -27,6 +28,7 @@ app.add_middleware(
 )
 
 app.include_router(files_router, prefix="/v1/files")
+app.include_router(qr_generator_router, prefix="/v1/qr")
 
 @app.get("/")
 def health_check():

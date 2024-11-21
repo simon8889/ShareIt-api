@@ -33,7 +33,6 @@ class FileStorage():
 		try:
 			self.s3_client.delete_object(Bucket=self.bucket, Key=path)
 		except Exception as e:
-			print(e, "----")
 			raise HTTPException(status_code = status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error")
 	
 			
