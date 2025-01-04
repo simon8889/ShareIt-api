@@ -56,7 +56,7 @@ class SaveFile():
 		file_to_save = SavedFileModel(file_path = self.get_path(),
 									 file_id = self.file_id,
 									 filename = self.file.filename,
-									 password = self.password)
+									 password = self.password if self.password else None)
 		self.db.add(file_to_save)
 		self.db.commit()
 

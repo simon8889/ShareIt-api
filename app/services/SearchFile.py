@@ -36,10 +36,13 @@ class SearchFile():
 						has_password = has_password)
 	
 	def password_is_valid(self, stored_password: str | None) -> bool:
+		print("################-------------###################", self.password)
 		has_password = stored_password != None
-		if has_password:
-			return verify_password(self.password, stored_password)
-		return True
+		if not has_password:
+			return True
+		if not self.password:
+			return False
+		return verify_password(self.password, stored_password)
 		
 	def get_file_from_storage(self):
 		file_info = self.search_in_db()
