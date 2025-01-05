@@ -4,10 +4,4 @@ services:
       context: .
     ports:
       - "8081:8000"
-    volumes:
-      - db_lite:/app/database  
     env_file: .env
-
-volumes:
-  db_lite:
-    driver: local
