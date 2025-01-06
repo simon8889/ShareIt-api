@@ -36,7 +36,6 @@ class SearchFile():
 						has_password = has_password)
 	
 	def password_is_valid(self, stored_password: str | None) -> bool:
-		print("################-------------###################", self.password)
 		has_password = stored_password != None
 		if not has_password:
 			return True
